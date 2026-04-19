@@ -519,6 +519,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, [applyPresentationUpdate]);
 
+  const saveHistory = useCallback((presentationId: string) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      const now = Date.now();
+      if (presentation.lastHistorySave && now - presentation.lastHistorySave < 60000) {
+        return presentation;
+      }
+
+      const snapshot: HistorySnapshot = {
+        id: uuidv4(),
+        timestamp: now,
+        slides: JSON.parse(JSON.stringify(presentation.slides)) as Slide[],
+        title: presentation.title,
+        thumbnail: presentation.thumbnail,
+        description: presentation.description,
+        defaultBackground: presentation.defaultBackground,
+      };
+
+      return {
+        ...presentation,
+        history: [...presentation.history, snapshot],
+        lastHistorySave: now,
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const restoreHistory = useCallback((presentationId: string, snapshotId: string) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      const snapshot = presentation.history.find(entry => entry.id === snapshotId);
+      if (!snapshot) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: JSON.parse(JSON.stringify(snapshot.slides)) as Slide[],
+        title: snapshot.title,
+        thumbnail: snapshot.thumbnail,
+        description: snapshot.description,
+        defaultBackground: snapshot.defaultBackground,
+      };
+    }));
+  }, [applyPresentationUpdate]);
 
   return (
     <StoreContext.Provider value={{
