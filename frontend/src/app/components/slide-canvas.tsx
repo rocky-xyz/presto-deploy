@@ -1,6 +1,16 @@
+
 import { useRef, useState, useEffect } from 'react';
 import type { MouseEvent as RMouseEvent } from 'react';
 import type { Slide, SlideElement, SlideBackground } from './store';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import python from 'highlight.js/lib/languages/python';
+import c from 'highlight.js/lib/languages/c';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('c', c);
+
 const CANVAS_BASE_WIDTH = 1600;
 const CANVAS_BASE_HEIGHT = 900;
 const CANVAS_BASE_FONT_SIZE = 16;
@@ -36,6 +46,12 @@ function getBackground(slide: Slide, defaultBg?: SlideBackground): React.CSSProp
   return { backgroundColor: '#ffffff' };
 }
 
+function highlightCode(code: string): string {
+  try {
+    const result = hljs.highlightAuto(code, ['javascript', 'python', 'c']);
+    return result.value;
+  } catch { return code; }
+}
 
 export function SlideCanvas({
   slide, defaultBackground, isPreview = false,
@@ -280,9 +296,47 @@ export function SlideCanvas({
             )}
           </div>
         )}
-        {(el.type === 'video' || el.type === 'code') && (
-          <div className="w-full h-full flex items-center justify-center overflow-hidden border border-dashed border-muted-foreground/40 bg-muted/15 text-xs text-muted-foreground">
-            {el.type}
+        {el.type === 'video' && (
+          <div className="w-full h-full" style={{ border: isPreview ? 'none' : '1px solid #e5e7eb', cursor: 'inherit' }}>
+            {el.videoUrl ? (
+              <iframe
+                src={`${el.videoUrl}${el.autoplay ? '?autoplay=1&mute=1' : ''}`}
+                className="w-full h-full"
+                allow="autoplay; encrypted-media"
+                allowFullScreen
+                title="Video"
+                style={{ pointerEvents: isPreview ? 'auto' : 'none', cursor: 'inherit' }}
+              />
+            ) : (
+              <div className="w-full h-full bg-muted flex items-center justify-center text-xs text-muted-foreground">No video</div>
+            )}
+          </div>
+        )}
+        {el.type === 'code' && (
+          <div className="w-full h-full overflow-auto p-2" style={{
+            fontSize: codeFontSize,
+            fontFamily: "'Fira Code', monospace",
+            backgroundColor: '#1e1e2e',
+            color: '#cdd6f4',
+            border: isPreview ? 'none' : '1px solid #e5e7eb',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+            minWidth: 0,
+            cursor: 'inherit',
+          }}>
+            <div
+              style={isStretchMode ? {
+                width: `${100 / contentScaleX}%`,
+                minHeight: '100%',
+                transform: `scaleX(${contentScaleX})`,
+                transformOrigin: 'top left',
+              } : undefined}
+            >
+              <pre style={{ margin: 0 }}>
+                <code className="syntax-highlight" dangerouslySetInnerHTML={{ __html: highlightCode(el.code || '') }} />
+              </pre>
+            </div>
           </div>
         )}
 
