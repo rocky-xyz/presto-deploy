@@ -186,3 +186,200 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await persistStore(nextPresentations);
     }
   }, [persistStore]);
+
+  const schedulePersist = useCallback((nextPresentations: Presentation[]) => {
+    pendingPresentationsRef.current = nextPresentations;
+
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      const queuedPresentations = pendingPresentationsRef.current;
+      persistTimerRef.current = null;
+      pendingPresentationsRef.current = null;
+
+      if (!queuedPresentations) {
+        return;
+      }
+
+      void persistStore(queuedPresentations).catch((error: unknown) => {
+        console.error('Failed to persist Presto store', error);
+      });
+    }, 250);
+  }, [persistStore]);
+
+  const applyPresentationUpdate = useCallback((updater: (previous: Presentation[]) => Presentation[]) => {
+    setPresentations(previous => {
+      const next = updater(previous);
+      schedulePersist(next);
+      return next;
+    });
+  }, [schedulePersist]);
+
+  const hydrateStore = useCallback(async (activeUser: User) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest<{ store: unknown }>('/store', {
+        token: activeUser.token,
+      });
+      const backendStore = parseBackendStore(response.store);
+      const nextUser = {
+        ...activeUser,
+        name: backendStore.name?.trim() || activeUser.name || activeUser.email,
+      };
+      setActiveUser(nextUser);
+      setPresentations(backendStore.presentations || []);
+    } catch (error) {
+      setActiveUser(null);
+      setPresentations([]);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setActiveUser]);
+
+  useEffect(() => {
+    const activeUser = userRef.current;
+    if (!activeUser) {
+      setIsLoading(false);
+      setPresentations([]);
+      return;
+    }
+
+    void hydrateStore(activeUser).catch((error: unknown) => {
+      console.error('Failed to hydrate Presto store', error);
+    });
+  }, [hydrateStore]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest<{ token: string }>('/admin/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
+
+      await hydrateStore({
+        email,
+        name: email,
+        token: response.token,
+      });
+    } catch (error) {
+      setIsLoading(false);
+      throw error;
+    }
+  }, [hydrateStore]);
+
+  const register = useCallback(async (email: string, password: string, name: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest<{ token: string }>('/admin/auth/register', {
+        method: 'POST',
+        body: { email, password, name },
+      });
+
+      const nextUser = { email, name, token: response.token };
+      setActiveUser(nextUser);
+      setPresentations([]);
+      await apiRequest<Record<string, never>>('/store', {
+        method: 'PUT',
+        token: response.token,
+        body: {
+          store: {
+            name,
+            presentations: [],
+          },
+        },
+      });
+    } catch (error) {
+      setActiveUser(null);
+      setPresentations([]);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setActiveUser]);
+
+  const logout = useCallback(async () => {
+    try {
+      await flushPendingPersist();
+      const activeUser = userRef.current;
+      if (activeUser) {
+        await apiRequest<Record<string, never>>('/admin/auth/logout', {
+          method: 'POST',
+          token: activeUser.token,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to log out cleanly', error);
+    } finally {
+      setActiveUser(null);
+      setPresentations([]);
+      setIsLoading(false);
+    }
+  }, [flushPendingPersist, setActiveUser]);
+
+  const createPresentation = useCallback((title: string, description: string, thumbnail: string): string => {
+    const id = uuidv4();
+    const newPresentation: Presentation = {
+      id,
+      title,
+      description,
+      thumbnail,
+      slides: [{ id: uuidv4(), elements: [] }],
+      history: [],
+    };
+
+    applyPresentationUpdate(previous => [...previous, newPresentation]);
+    return id;
+  }, [applyPresentationUpdate]);
+
+  const deletePresentation = useCallback((id: string) => {
+    applyPresentationUpdate(previous => previous.filter(presentation => presentation.id !== id));
+  }, [applyPresentationUpdate]);
+
+  const getPresentation = useCallback((id: string) => {
+    return presentations.find(presentation => presentation.id === id);
+  }, [presentations]);
+
+  const updatePresentation = useCallback((id: string, updates: Partial<Presentation>) => {
+    applyPresentationUpdate(previous => previous.map(presentation => (
+      presentation.id === id ? { ...presentation, ...updates } : presentation
+    )));
+  }, [applyPresentationUpdate]);
+
+  const addSlide = useCallback((presentationId: string) => {
+    applyPresentationUpdate(previous => previous.map(presentation => (
+      presentation.id === presentationId
+        ? { ...presentation, slides: [...presentation.slides, { id: uuidv4(), elements: [] }] }
+        : presentation
+    )));
+  }, [applyPresentationUpdate]);
+
+  const deleteSlide = useCallback((presentationId: string, slideId: string): string | null => {
+    let result: string | null = null;
+
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId || presentation.slides.length <= 1) {
+        return presentation;
+      }
+
+      const slideIndex = presentation.slides.findIndex(slide => slide.id === slideId);
+      const nextSlides = presentation.slides.filter(slide => slide.id !== slideId);
+      const nextIndex = Math.min(slideIndex, nextSlides.length - 1);
+      result = nextSlides[nextIndex]?.id || null;
+
+      return { ...presentation, slides: nextSlides };
+    }));
+
+    return result;
+  }, [applyPresentationUpdate]);
