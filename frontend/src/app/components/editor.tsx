@@ -317,3 +317,148 @@ export function Editor() {
           <Trash2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Delete Slide</span>
         </Button>
       </div>
+
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {slidePanelOpen && (
+          <aside className={`${isMobile ? 'w-full' : 'w-72 max-w-[40vw]'} shrink-0 border-r border-border bg-card/95`}>
+            <SlidePanel
+              slides={pres.slides}
+              currentIndex={slideIdx}
+              defaultBackground={pres.defaultBackground}
+              onNavigate={(idx) => {
+                goToSlide(idx);
+                if (isMobile) {
+                  setMobileSlidePanelOpen(false);
+                }
+              }}
+              onReorder={(from, to) => store.reorderSlides(pres.id, from, to)}
+            />
+          </aside>
+        )}
+
+        {(!isMobile || !slidePanelOpen) && (
+          <div className="flex-1 flex items-center justify-center p-2 sm:p-6 min-h-0 overflow-hidden relative">
+            <Button
+              variant="ghost" size="sm"
+              className={`absolute left-3 sm:left-6 z-10 h-10 w-10 rounded-full bg-black/35 p-0 text-white shadow-md backdrop-blur-sm transition-opacity duration-300 hover:bg-black/50 hover:text-white disabled:bg-black/10 disabled:text-white/30 ${showNavControls ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 disabled:opacity-0'}`}
+              disabled={isFirst}
+              onClick={() => goToSlide(slideIdx - 1)}
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+
+            <div className="w-full max-w-4xl mx-5 sm:mx-14">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={slide.id}
+                  initial={{ opacity: 0, x: direction * 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: direction * -40 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="rounded-lg overflow-hidden shadow-lg border border-border">
+                    <SlideCanvas
+                      slide={slide}
+                      defaultBackground={pres.defaultBackground}
+                      slideNumber={slideIdx + 1}
+                      selectedElementId={selectedEl}
+                      onSelectElement={setSelectedEl}
+                      onDoubleClickElement={openEditModal}
+                      onDeleteElement={handleDeleteElement}
+                      onMoveElement={handleMoveElement}
+                      onResizeElement={handleResizeElement}
+                      onToggleScaleMode={handleToggleScaleMode}
+                      onMoveLayer={handleMoveLayer}
+                    />
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            <Button
+              variant="ghost" size="sm"
+              className={`absolute right-3 sm:right-6 z-10 h-10 w-10 rounded-full bg-black/35 p-0 text-white shadow-md backdrop-blur-sm transition-opacity duration-300 hover:bg-black/50 hover:text-white disabled:bg-black/10 disabled:text-white/30 ${showNavControls ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 disabled:opacity-0'}`}
+              disabled={isLast}
+              onClick={() => goToSlide(slideIdx + 1)}
+              aria-label="Next slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Element Modals */}
+      <TextModal
+        open={modalType === 'text'}
+        onClose={() => { setModalType(null); setEditingEl(null); }}
+        onSubmit={editingEl ? handleEditElement : handleAddElement}
+        initial={editingEl?.type === 'text' ? editingEl : undefined}
+      />
+      <ImageModal
+        open={modalType === 'image'}
+        onClose={() => { setModalType(null); setEditingEl(null); }}
+        onSubmit={editingEl ? handleEditElement : handleAddElement}
+        initial={editingEl?.type === 'image' ? editingEl : undefined}
+      />
+      <VideoModal
+        open={modalType === 'video'}
+        onClose={() => { setModalType(null); setEditingEl(null); }}
+        onSubmit={editingEl ? handleEditElement : handleAddElement}
+        initial={editingEl?.type === 'video' ? editingEl : undefined}
+      />
+      <CodeModal
+        open={modalType === 'code'}
+        onClose={() => { setModalType(null); setEditingEl(null); }}
+        onSubmit={editingEl ? handleEditElement : handleAddElement}
+        initial={editingEl?.type === 'code' ? editingEl : undefined}
+      />
+
+      {/* Background Modal */}
+      <BackgroundModal
+        open={bgModal}
+        onClose={() => setBgModal(false)}
+        currentBg={slide.background}
+        defaultBg={pres.defaultBackground}
+        onSetCurrent={handleSetCurrentBg}
+        onSetDefault={handleSetDefaultBg}
+      />
+
+      {/* Delete Presentation Confirm */}
+      <Dialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Are you sure?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This will permanently delete {pres.title} and all its slides.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(false)}>No</Button>
+            <Button variant="destructive" onClick={handleDeletePres}>Yes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Title/Thumbnail Modal */}
+      <Dialog open={editTitle} onOpenChange={setEditTitle}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Edit Presentation</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Title</Label><Input value={titleVal} onChange={e => setTitleVal(e.target.value)} /></div>
+            <div><Label>Thumbnail URL</Label><Input value={thumbVal} onChange={e => setThumbVal(e.target.value)} placeholder="https://..." /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTitle(false)}>Cancel</Button>
+            <Button onClick={handleSaveTitle}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Panel */}
+      <HistoryPanel
+        open={historyPanel}
+        onClose={() => setHistoryPanel(false)}
+        history={pres.history}
+        onRestore={(snapId) => { store.restoreHistory(pres.id, snapId); setHistoryPanel(false); toast.success('Version restored'); }}
+      />
+    </div>
+  );
+}
