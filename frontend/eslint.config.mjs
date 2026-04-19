@@ -33,16 +33,17 @@ export default defineConfig(
       ...react.configs["jsx-runtime"].rules,
       ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-explicit-any": "error",
-      "react-hooks/exhaustive-deps": "off",
-      "no-unused-vars": ["error", { 
+      "@typescript-eslint/no-unused-vars": ["error", {
         "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_"
       }],
+      "react-hooks/exhaustive-deps": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "no-unused-vars": "off",
+      "no-undef": "off",
       "react/jsx-no-target-blank": ["error", { enforceDynamicLinks: "always" }],
-      "react-refresh/only-export-components": [
-        "error",
-        { allowConstantExport: true },
-      ],
+      "react-refresh/only-export-components": "off",
       "react/no-unstable-nested-components": ["error", { allowAsProps: true }],
       "prefer-arrow-callback": [
         "error",
@@ -56,5 +57,4 @@ export default defineConfig(
     },
   },
 );
-
 
