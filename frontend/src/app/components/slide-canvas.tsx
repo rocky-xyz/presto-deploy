@@ -1,7 +1,7 @@
-
 import { useRef, useState, useEffect } from 'react';
 import type { MouseEvent as RMouseEvent } from 'react';
 import type { Slide, SlideElement, SlideBackground } from './store';
+import { MoveDown, MoveUp, Pencil, Proportions, Trash2 } from 'lucide-react';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import python from 'highlight.js/lib/languages/python';
@@ -235,6 +235,7 @@ export function SlideCanvas({
       : `${el.codeFontSize || 0.8}em`;
     const contentScaleX = el.contentScaleX ?? 1;
     const isStretchMode = (el.scaleMode || 'stretch') === 'stretch';
+    const supportsScaleToggle = el.type === 'text' || el.type === 'code' || el.type === 'image';
 
     return (
       <div
@@ -254,6 +255,58 @@ export function SlideCanvas({
         onMouseEnter={() => { if (!isPreview) setHoveredElementId(el.id); }}
         onMouseLeave={() => { if (!isPreview) setHoveredElementId(current => current === el.id ? null : current); }}
       >
+        {!isPreview && (isHovered || isSelected) && (
+          <div
+            className="absolute -top-10 right-0 z-[1001] flex items-center gap-1 rounded-full border border-border bg-background/95 px-1.5 py-1 shadow-lg backdrop-blur"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+          >
+            {supportsScaleToggle && (
+              <button
+                type="button"
+                className={`rounded-full p-1.5 transition-colors ${!isStretchMode ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                onClick={() => onToggleScaleMode?.(el.id)}
+                title={isStretchMode ? 'Enable proportional scaling' : 'Disable proportional scaling'}
+                aria-label={isStretchMode ? 'Enable proportional scaling' : 'Disable proportional scaling'}
+                aria-pressed={!isStretchMode}
+              >
+                <Proportions className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => onMoveLayer?.(el.id, 'backward')}
+              title="Move layer backward"
+            >
+              <MoveDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => onMoveLayer?.(el.id, 'forward')}
+              title="Move layer forward"
+            >
+              <MoveUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => onDoubleClickElement?.(el.id)}
+              title="Edit element"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDeleteElement?.(el.id)}
+              title="Delete element"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         {el.type === 'text' && (
           <div className="w-full h-full overflow-auto p-1" style={{
             fontSize: textFontSize,
