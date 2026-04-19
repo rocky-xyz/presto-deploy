@@ -383,3 +383,176 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     return result;
   }, [applyPresentationUpdate]);
+
+  const updateSlide = useCallback((presentationId: string, slideId: string, updates: Partial<Slide>) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: presentation.slides.map(slide => (
+          slide.id === slideId ? { ...slide, ...updates } : slide
+        )),
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const reorderSlides = useCallback((presentationId: string, fromIndex: number, toIndex: number) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      const slides = [...presentation.slides];
+      const [movedSlide] = slides.splice(fromIndex, 1);
+      slides.splice(toIndex, 0, movedSlide);
+      return { ...presentation, slides };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const addElement = useCallback((presentationId: string, slideId: string, element: Omit<SlideElement, 'id' | 'zIndex'>) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: presentation.slides.map(slide => {
+          if (slide.id !== slideId) {
+            return slide;
+          }
+
+          const maxZIndex = slide.elements.reduce((currentMax, existingElement) => Math.max(currentMax, existingElement.zIndex), 0);
+          return {
+            ...slide,
+            elements: [...slide.elements, {
+              ...element,
+              id: uuidv4(),
+              zIndex: maxZIndex + 1,
+            } as SlideElement],
+          };
+        }),
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const updateElement = useCallback((presentationId: string, slideId: string, elementId: string, updates: Partial<SlideElement>) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: presentation.slides.map(slide => {
+          if (slide.id !== slideId) {
+            return slide;
+          }
+
+          return {
+            ...slide,
+            elements: slide.elements.map(element => (
+              element.id === elementId ? { ...element, ...updates } : element
+            )),
+          };
+        }),
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const deleteElement = useCallback((presentationId: string, slideId: string, elementId: string) => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: presentation.slides.map(slide => {
+          if (slide.id !== slideId) {
+            return slide;
+          }
+
+          return {
+            ...slide,
+            elements: slide.elements.filter(element => element.id !== elementId),
+          };
+        }),
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+  const moveElementLayer = useCallback((presentationId: string, slideId: string, elementId: string, direction: 'forward' | 'backward') => {
+    applyPresentationUpdate(previous => previous.map(presentation => {
+      if (presentation.id !== presentationId) {
+        return presentation;
+      }
+
+      return {
+        ...presentation,
+        slides: presentation.slides.map(slide => {
+          if (slide.id !== slideId) {
+            return slide;
+          }
+
+          const orderedElements = [...slide.elements].sort((a, b) => a.zIndex - b.zIndex);
+          const currentIndex = orderedElements.findIndex(element => element.id === elementId);
+          if (currentIndex === -1) {
+            return slide;
+          }
+
+          const swapIndex = direction === 'forward' ? currentIndex + 1 : currentIndex - 1;
+          if (swapIndex < 0 || swapIndex >= orderedElements.length) {
+            return slide;
+          }
+
+          [orderedElements[currentIndex], orderedElements[swapIndex]] = [orderedElements[swapIndex], orderedElements[currentIndex]];
+          return {
+            ...slide,
+            elements: normalizeElementLayers(orderedElements),
+          };
+        }),
+      };
+    }));
+  }, [applyPresentationUpdate]);
+
+
+  return (
+    <StoreContext.Provider value={{
+      user,
+      presentations,
+      isLoading,
+      login,
+      register,
+      logout,
+      createPresentation,
+      deletePresentation,
+      getPresentation,
+      updatePresentation,
+      addSlide,
+      deleteSlide,
+      updateSlide,
+      reorderSlides,
+      addElement,
+      updateElement,
+      deleteElement,
+      moveElementLayer,
+      saveHistory,
+      restoreHistory,
+    }}>
+      {children}
+    </StoreContext.Provider>
+  );
+}
+
+export function useStore() {
+  const context = useContext(StoreContext);
+  if (!context) {
+    throw new Error('useStore must be inside StoreProvider');
+  }
+
+  return context;
+}
