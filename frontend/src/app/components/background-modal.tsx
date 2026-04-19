@@ -1,7 +1,19 @@
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import type { SlideBackground } from './store';
+
+interface BackgroundModalProps {
+  open: boolean;
+  onClose: () => void;
+  currentBg?: SlideBackground;
+  defaultBg?: SlideBackground;
+  onSetCurrent: (bg: SlideBackground | undefined) => void;
+  onSetDefault: (bg: SlideBackground) => void;
+}
 
 const DEFAULT_SOLID_COLOR = '#ffffff';
 const DEFAULT_GRADIENT_ANGLE = 135;
@@ -47,7 +59,7 @@ function parseGradient(gradient?: string) {
   };
 }
 
-export function BgEditor({ value, onChange }: { value: SlideBackground; onChange: (bg: SlideBackground) => void }) {
+function BgEditor({ value, onChange }: { value: SlideBackground; onChange: (bg: SlideBackground) => void }) {
   const gradient = parseGradient(value.gradient);
 
   const updateGradient = (updates: Partial<typeof gradient>) => {
@@ -176,5 +188,60 @@ export function BgEditor({ value, onChange }: { value: SlideBackground; onChange
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export function BackgroundModal({ open, onClose, currentBg, defaultBg, onSetCurrent, onSetDefault }: BackgroundModalProps) {
+  const [tab, setTab] = useState<'current' | 'default'>('current');
+  const [curBg, setCurBg] = useState<SlideBackground>(currentBg || { type: 'solid', color: DEFAULT_SOLID_COLOR });
+  const [defBg, setDefBg] = useState<SlideBackground>(defaultBg || { type: 'solid', color: DEFAULT_SOLID_COLOR });
+  const [useCustom, setUseCustom] = useState(!!currentBg);
+
+  useEffect(() => {
+    if (open) {
+      setCurBg(currentBg || defaultBg || { type: 'solid', color: DEFAULT_SOLID_COLOR });
+      setDefBg(defaultBg || { type: 'solid', color: DEFAULT_SOLID_COLOR });
+      setUseCustom(!!currentBg);
+    }
+  }, [open, currentBg, defaultBg]);
+
+  const handleTabChange = (value: string) => {
+    if (value === 'current' || value === 'default') {
+      setTab(value);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Background & Theme</DialogTitle></DialogHeader>
+        <Tabs value={tab} onValueChange={handleTabChange}>
+          <TabsList className="w-full">
+            <TabsTrigger value="current" className="flex-1">This Slide</TabsTrigger>
+            <TabsTrigger value="default" className="flex-1">Default (All)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="current" className="mt-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="use-custom" checked={useCustom} onChange={e => setUseCustom(e.target.checked)} className="rounded" />
+              <Label htmlFor="use-custom">Custom background for this slide</Label>
+            </div>
+            {useCustom && <BgEditor value={curBg} onChange={setCurBg} />}
+            {!useCustom && <p className="text-sm text-muted-foreground">This slide uses the default background.</p>}
+          </TabsContent>
+          <TabsContent value="default" className="mt-3">
+            <p className="text-sm text-muted-foreground mb-3">Applies to new slides and any slide without a custom background.</p>
+            <BgEditor value={defBg} onChange={setDefBg} />
+          </TabsContent>
+        </Tabs>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => {
+            if (tab === 'current') onSetCurrent(useCustom ? curBg : undefined);
+            else onSetDefault(defBg);
+            onClose();
+          }}>Apply</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
