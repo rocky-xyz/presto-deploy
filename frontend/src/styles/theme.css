@@ -128,5 +128,101 @@
     @apply bg-background text-foreground;
   }
 
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
 
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+
+  .syntax-highlight {
+    color: #cdd6f4;
+  }
+
+  .syntax-highlight .hljs-keyword,
+  .syntax-highlight .hljs-selector-tag,
+  .syntax-highlight .hljs-literal {
+    color: #f38ba8;
+  }
+
+  .syntax-highlight .hljs-title,
+  .syntax-highlight .hljs-title.function_,
+  .syntax-highlight .hljs-function .hljs-title {
+    color: #89b4fa;
+  }
+
+  .syntax-highlight .hljs-string,
+  .syntax-highlight .hljs-attr,
+  .syntax-highlight .hljs-regexp {
+    color: #a6e3a1;
+  }
+
+  .syntax-highlight .hljs-number,
+  .syntax-highlight .hljs-symbol,
+  .syntax-highlight .hljs-bullet {
+    color: #fab387;
+  }
+
+  .syntax-highlight .hljs-params,
+  .syntax-highlight .hljs-variable,
+  .syntax-highlight .hljs-template-variable,
+  .syntax-highlight .hljs-subst {
+    color: #f9e2af;
+  }
+
+  .syntax-highlight .hljs-comment,
+  .syntax-highlight .hljs-quote {
+    color: #9399b2;
+    font-style: italic;
+  }
+
+  .syntax-highlight .hljs-built_in,
+  .syntax-highlight .hljs-type,
+  .syntax-highlight .hljs-class .hljs-title {
+    color: #94e2d5;
+  }
 }
