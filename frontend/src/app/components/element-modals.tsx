@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import type { SlideElement } from './store';
 
@@ -150,3 +151,72 @@ export function ImageModal({ open, onClose, onSubmit, initial }: ModalProps) {
   );
 }
 
+export function VideoModal({ open, onClose, onSubmit, initial }: ModalProps) {
+  const [width, setWidth] = useState(initial?.width?.toString() || '40');
+  const [height, setHeight] = useState(initial?.height?.toString() || '30');
+  const [videoUrl, setVideoUrl] = useState(initial?.videoUrl || '');
+  const [autoplay, setAutoplay] = useState(initial?.autoplay || false);
+
+  useEffect(() => {
+    if (open) { setWidth(initial?.width?.toString() || '40'); setHeight(initial?.height?.toString() || '30'); setVideoUrl(initial?.videoUrl || ''); setAutoplay(initial?.autoplay || false); }
+  }, [open, initial]);
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{initial?.videoUrl !== undefined ? 'Edit Video' : 'Add Video'}</DialogTitle></DialogHeader>
+        <div className="space-y-3 min-w-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0"><Label>Width (%)</Label><Input type="number" min={1} max={100} value={width} onChange={e => setWidth(e.target.value)} /></div>
+            <div className="min-w-0"><Label>Height (%)</Label><Input type="number" min={1} max={100} value={height} onChange={e => setHeight(e.target.value)} /></div>
+          </div>
+          <div className="min-w-0"><Label>YouTube Embed URL</Label><Input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://www.youtube.com/embed/..." /></div>
+          <div className="flex items-center gap-2">
+            <Switch checked={autoplay} onCheckedChange={setAutoplay} id="autoplay" />
+            <Label htmlFor="autoplay">Autoplay</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSubmit({ type: 'video', width: Number(width), height: Number(height), videoUrl, autoplay })}>
+            {initial?.videoUrl !== undefined ? 'Save' : 'Add'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CodeModal({ open, onClose, onSubmit, initial }: ModalProps) {
+  const [width, setWidth] = useState(initial?.width?.toString() || '40');
+  const [height, setHeight] = useState(initial?.height?.toString() || '25');
+  const [code, setCode] = useState(initial?.code || '');
+  const [codeFontSize, setCodeFontSize] = useState(initial?.codeFontSize?.toString() || '0.8');
+
+  useEffect(() => {
+    if (open) { setWidth(initial?.width?.toString() || '40'); setHeight(initial?.height?.toString() || '25'); setCode(initial?.code || ''); setCodeFontSize(initial?.codeFontSize?.toString() || '0.8'); }
+  }, [open, initial]);
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{initial?.code !== undefined ? 'Edit Code' : 'Add Code'}</DialogTitle></DialogHeader>
+        <div className="space-y-3 min-w-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0"><Label>Width (%)</Label><Input type="number" min={1} max={100} value={width} onChange={e => setWidth(e.target.value)} /></div>
+            <div className="min-w-0"><Label>Height (%)</Label><Input type="number" min={1} max={100} value={height} onChange={e => setHeight(e.target.value)} /></div>
+          </div>
+          <div className="min-w-0"><Label>Code</Label><Textarea value={code} onChange={e => setCode(e.target.value)} rows={6} className="font-mono" placeholder="Enter code..." /></div>
+          <div className="min-w-0"><Label>Font Size (em)</Label><Input type="number" step={0.1} min={0.1} value={codeFontSize} onChange={e => setCodeFontSize(e.target.value)} /></div>
+          <p className="text-xs text-muted-foreground">Language is auto-detected (C, Python, JavaScript)</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSubmit({ type: 'code', width: Number(width), height: Number(height), code, codeFontSize: Number(codeFontSize) })}>
+            {initial?.code !== undefined ? 'Save' : 'Add'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
