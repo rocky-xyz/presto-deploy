@@ -1,9 +1,9 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import type { MouseEvent as RMouseEvent } from 'react';
 import type { Slide, SlideElement, SlideBackground } from './store';
-
 const CANVAS_BASE_WIDTH = 1600;
 const CANVAS_BASE_HEIGHT = 900;
+const CANVAS_BASE_FONT_SIZE = 16;
 
 interface SlideCanvasProps {
   slide: Slide;
@@ -36,22 +36,15 @@ function getBackground(slide: Slide, defaultBg?: SlideBackground): React.CSSProp
   return { backgroundColor: '#ffffff' };
 }
 
+
 export function SlideCanvas({
-  slide,
-  defaultBackground,
-  isPreview = false,
-  selectedElementId,
-  onSelectElement,
-  onDoubleClickElement,
-  onDeleteElement,
-  onMoveElement,
-  onResizeElement,
-  onToggleScaleMode: _onToggleScaleMode,
-  onMoveLayer: _onMoveLayer,
-  slideNumber,
+  slide, defaultBackground, isPreview = false,
+  selectedElementId, onSelectElement, onDoubleClickElement, onDeleteElement,
+  onMoveElement, onResizeElement, onToggleScaleMode, onMoveLayer, slideNumber,
 }: SlideCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; elX: number; elY: number } | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     corner: string;
@@ -86,7 +79,34 @@ export function SlideCanvas({
     return () => observer.disconnect();
   }, []);
 
-  const handleMouseMove = useCallback((e: globalThis.MouseEvent) => {
+  const handleMouseDown = (e: RMouseEvent, el: SlideElement, corner?: string) => {
+    if (isPreview) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = getCanvasRect();
+    if (!rect) return;
+
+    if (corner) {
+      setResizing({
+        id: el.id,
+        corner,
+        startX: e.clientX,
+        startY: e.clientY,
+        elX: el.x,
+        elY: el.y,
+        elW: el.width,
+        elH: el.height,
+        textFontSize: el.fontSize,
+        codeFontSize: el.codeFontSize,
+        contentScaleX: el.contentScaleX ?? 1,
+      });
+    } else {
+      onSelectElement?.(el.id);
+      setDragging({ id: el.id, startX: e.clientX, startY: e.clientY, elX: el.x, elY: el.y });
+    }
+  };
+
+  const handleMouseMove = (e: globalThis.MouseEvent) => {
     const rect = getCanvasRect();
     if (!rect) return;
 
@@ -155,12 +175,12 @@ export function SlideCanvas({
         Object.keys(contentUpdates).length ? contentUpdates : undefined,
       );
     }
-  }, [dragging, resizing, slide.elements, onMoveElement, onResizeElement]);
+  };
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = () => {
     setDragging(null);
     setResizing(null);
-  }, []);
+  };
 
   useEffect(() => {
     if (dragging || resizing) {
@@ -169,33 +189,6 @@ export function SlideCanvas({
       return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
     }
   }, [dragging, resizing, handleMouseMove, handleMouseUp]);
-
-  const handleMouseDown = (e: RMouseEvent, el: SlideElement, corner?: string) => {
-    if (isPreview) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const rect = getCanvasRect();
-    if (!rect) return;
-
-    if (corner) {
-      setResizing({
-        id: el.id,
-        corner,
-        startX: e.clientX,
-        startY: e.clientY,
-        elX: el.x,
-        elY: el.y,
-        elW: el.width,
-        elH: el.height,
-        textFontSize: el.fontSize,
-        codeFontSize: el.codeFontSize,
-        contentScaleX: el.contentScaleX ?? 1,
-      });
-    } else {
-      onSelectElement?.(el.id);
-      setDragging({ id: el.id, startX: e.clientX, startY: e.clientY, elX: el.x, elY: el.y });
-    }
-  };
 
   const handleContextMenu = (e: RMouseEvent, el: SlideElement) => {
     if (isPreview) return;
@@ -215,27 +208,84 @@ export function SlideCanvas({
   };
   const cornerResize: Record<string, string> = { tl: 'tl', tr: 'tr', bl: 'bl', br: 'br' };
 
-  const renderInteractionPlaceholders = () => sortedElements.map(el => {
+  const renderElements = (scaleFonts: boolean) => sortedElements.map(el => {
     const isSelected = selectedElementId === el.id && !isPreview;
+    const isHovered = hoveredElementId === el.id && !isPreview;
+    const textFontSize = scaleFonts
+      ? `${(el.fontSize || 1) * CANVAS_BASE_FONT_SIZE * canvasScale}px`
+      : `${el.fontSize || 1}em`;
+    const codeFontSize = scaleFonts
+      ? `${(el.codeFontSize || 0.8) * CANVAS_BASE_FONT_SIZE * canvasScale}px`
+      : `${el.codeFontSize || 0.8}em`;
+    const contentScaleX = el.contentScaleX ?? 1;
+    const isStretchMode = (el.scaleMode || 'stretch') === 'stretch';
+
     return (
       <div
         key={el.id}
-        className="absolute min-w-0 flex items-center justify-center overflow-hidden border border-dashed border-muted-foreground/40 bg-muted/20 text-[10px] text-muted-foreground"
+        className="absolute min-w-0"
         style={{
-          left: `${el.x}%`,
-          top: `${el.y}%`,
-          width: `${el.width}%`,
-          height: `${el.height}%`,
+          left: `${el.x}%`, top: `${el.y}%`,
+          width: `${el.width}%`, height: `${el.height}%`,
           zIndex: el.zIndex,
-          outline: isSelected ? '2px solid #3b82f6' : undefined,
+          outline: isSelected ? '2px solid #3b82f6' : (isPreview ? 'none' : '1px solid rgba(0,0,0,0.1)'),
           cursor: isPreview ? 'inherit' : (dragging?.id === el.id ? 'grabbing' : 'grab'),
         }}
         onClick={e => { e.stopPropagation(); if (!isPreview) onSelectElement?.(el.id); }}
         onDoubleClick={e => { e.stopPropagation(); if (!isPreview) onDoubleClickElement?.(el.id); }}
         onContextMenu={e => handleContextMenu(e, el)}
         onMouseDown={e => { if (e.button === 0 && !isPreview) handleMouseDown(e, el); }}
+        onMouseEnter={() => { if (!isPreview) setHoveredElementId(el.id); }}
+        onMouseLeave={() => { if (!isPreview) setHoveredElementId(current => current === el.id ? null : current); }}
       >
-        {el.type}
+        {el.type === 'text' && (
+          <div className="w-full h-full overflow-auto p-1" style={{
+            fontSize: textFontSize,
+            color: el.color || '#000000',
+            fontFamily: el.fontFamily || 'Inter, sans-serif',
+            whiteSpace: 'pre-wrap', textAlign: el.textAlign || 'center',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+            minWidth: 0,
+            border: isPreview ? 'none' : '1px solid #e5e7eb',
+            cursor: 'inherit',
+          }}>
+            <div
+              style={isStretchMode ? {
+                width: `${100 / contentScaleX}%`,
+                minHeight: '100%',
+                transform: `scaleX(${contentScaleX})`,
+                transformOrigin: 'top left',
+              } : { minHeight: '100%' }}
+              className="flex h-full items-center justify-center"
+            >
+              <div className="w-full">
+                {el.text}
+              </div>
+            </div>
+          </div>
+        )}
+        {el.type === 'image' && (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden"
+            style={{ border: isPreview ? 'none' : '1px solid #e5e7eb', cursor: 'inherit' }}>
+            {el.src ? (
+              <img
+                src={el.src}
+                alt={el.alt || ''}
+                className={isStretchMode ? 'h-full w-full object-fill' : 'max-w-full max-h-full object-contain'}
+                style={{ cursor: 'inherit' }}
+              />
+            ) : (
+              <div className="w-full h-full bg-muted flex items-center justify-center text-xs text-muted-foreground">No image</div>
+            )}
+          </div>
+        )}
+        {(el.type === 'video' || el.type === 'code') && (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden border border-dashed border-muted-foreground/40 bg-muted/15 text-xs text-muted-foreground">
+            {el.type}
+          </div>
+        )}
+
         {isSelected && corners.map(c => (
           <div
             key={c}
@@ -268,14 +318,14 @@ export function SlideCanvas({
             transformOrigin: 'top left',
           }}
         >
-          {renderInteractionPlaceholders()}
+          {renderElements(false)}
           <div className="absolute bottom-18 left-24 text-[20px] px-3 py-1 rounded bg-black/50 text-white" style={{ zIndex: 1000 }}>
             {slideNumber}
           </div>
         </div>
       ) : (
         <>
-          {renderInteractionPlaceholders()}
+          {renderElements(true)}
           <div className="absolute bottom-2 left-3 text-xs px-2 py-0.5 rounded bg-black/50 text-white" style={{ zIndex: 1000 }}>
             {slideNumber}
           </div>
