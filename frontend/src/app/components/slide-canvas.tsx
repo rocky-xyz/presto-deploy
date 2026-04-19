@@ -36,21 +36,35 @@ function getBackground(slide: Slide, defaultBg?: SlideBackground): React.CSSProp
   return { backgroundColor: '#ffffff' };
 }
 
-export function SlideCanvas(props: SlideCanvasProps) {
-  const {
-    slide,
-    defaultBackground,
-    isPreview = false,
-    slideNumber,
-    selectedElementId,
-    onSelectElement,
-    onDoubleClickElement,
-    onDeleteElement,
-    onMoveElement,
-  } = props;
-
+export function SlideCanvas({
+  slide,
+  defaultBackground,
+  isPreview = false,
+  selectedElementId,
+  onSelectElement,
+  onDoubleClickElement,
+  onDeleteElement,
+  onMoveElement,
+  onResizeElement,
+  onToggleScaleMode: _onToggleScaleMode,
+  onMoveLayer: _onMoveLayer,
+  slideNumber,
+}: SlideCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; elX: number; elY: number } | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    corner: string;
+    startX: number;
+    startY: number;
+    elX: number;
+    elY: number;
+    elW: number;
+    elH: number;
+    textFontSize?: number;
+    codeFontSize?: number;
+    contentScaleX?: number;
+  } | null>(null);
   const [canvasScale, setCanvasScale] = useState(1);
 
   const getCanvasRect = () => canvasRef.current?.getBoundingClientRect();
@@ -76,39 +90,111 @@ export function SlideCanvas(props: SlideCanvasProps) {
     const rect = getCanvasRect();
     if (!rect) return;
 
-    if (!dragging) return;
+    if (dragging) {
+      const dx = ((e.clientX - dragging.startX) / rect.width) * 100;
+      const dy = ((e.clientY - dragging.startY) / rect.height) * 100;
+      const el = slide.elements.find(el => el.id === dragging.id);
+      if (!el) return;
+      const newX = Math.max(0, Math.min(100 - el.width, dragging.elX + dx));
+      const newY = Math.max(0, Math.min(100 - el.height, dragging.elY + dy));
+      onMoveElement?.(dragging.id, newX, newY);
+    }
 
-    const dx = ((e.clientX - dragging.startX) / rect.width) * 100;
-    const dy = ((e.clientY - dragging.startY) / rect.height) * 100;
-    const el = slide.elements.find(el => el.id === dragging.id);
-    if (!el) return;
-    const newX = Math.max(0, Math.min(100 - el.width, dragging.elX + dx));
-    const newY = Math.max(0, Math.min(100 - el.height, dragging.elY + dy));
-    onMoveElement?.(dragging.id, newX, newY);
-  }, [dragging, slide.elements, onMoveElement]);
+    if (resizing) {
+      const dx = ((e.clientX - resizing.startX) / rect.width) * 100;
+      const dy = ((e.clientY - resizing.startY) / rect.height) * 100;
+      let { elX: x, elY: y, elW: w, elH: h } = resizing;
+      const { corner } = resizing;
+      const contentUpdates: Partial<Pick<SlideElement, 'fontSize' | 'codeFontSize' | 'contentScaleX'>> = {};
+
+      if (corner.includes('r')) { w = Math.max(1, Math.min(100 - x, w + dx)); }
+      if (corner.includes('l')) { const nw = Math.max(1, w - dx); x = x + (w - nw); w = nw; x = Math.max(0, x); }
+      if (corner.includes('b')) { h = Math.max(1, Math.min(100 - y, h + dy)); }
+      if (corner.includes('t')) { const nh = Math.max(1, h - dy); y = y + (h - nh); h = nh; y = Math.max(0, y); }
+
+      const originalDiagonal = Math.hypot(resizing.elW, resizing.elH);
+      const resizedDiagonal = Math.hypot(w, h);
+      const contentScale = originalDiagonal > 0
+        ? Math.max(0.1, resizedDiagonal / originalDiagonal)
+        : 1;
+      const element = slide.elements.find(el => el.id === resizing.id);
+
+      if (element?.type === 'text' || element?.type === 'code') {
+        if ((element.scaleMode || 'stretch') === 'proportional') {
+          if (element.type === 'text' && resizing.textFontSize !== undefined) {
+            contentUpdates.fontSize = Math.max(0.1, resizing.textFontSize * contentScale);
+          }
+
+          if (element.type === 'code' && resizing.codeFontSize !== undefined) {
+            contentUpdates.codeFontSize = Math.max(0.1, resizing.codeFontSize * contentScale);
+          }
+
+          contentUpdates.contentScaleX = 1;
+        } else {
+          const widthScale = resizing.elW > 0 ? w / resizing.elW : 1;
+          const heightScale = resizing.elH > 0 ? h / resizing.elH : 1;
+
+          if (element.type === 'text' && resizing.textFontSize !== undefined) {
+            contentUpdates.fontSize = Math.max(0.1, resizing.textFontSize * heightScale);
+          }
+
+          if (element.type === 'code' && resizing.codeFontSize !== undefined) {
+            contentUpdates.codeFontSize = Math.max(0.1, resizing.codeFontSize * heightScale);
+          }
+
+          contentUpdates.contentScaleX = Math.max(0.1, (resizing.contentScaleX ?? 1) * (widthScale / Math.max(heightScale, 0.1)));
+        }
+      }
+
+      onResizeElement?.(
+        resizing.id,
+        x,
+        y,
+        w,
+        h,
+        Object.keys(contentUpdates).length ? contentUpdates : undefined,
+      );
+    }
+  }, [dragging, resizing, slide.elements, onMoveElement, onResizeElement]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
+    setResizing(null);
   }, []);
 
   useEffect(() => {
-    if (!dragging) return;
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragging, handleMouseMove, handleMouseUp]);
+    if (dragging || resizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+    }
+  }, [dragging, resizing, handleMouseMove, handleMouseUp]);
 
-  const handleMouseDown = (e: RMouseEvent, el: SlideElement) => {
+  const handleMouseDown = (e: RMouseEvent, el: SlideElement, corner?: string) => {
     if (isPreview) return;
     e.stopPropagation();
     e.preventDefault();
     const rect = getCanvasRect();
     if (!rect) return;
-    onSelectElement?.(el.id);
-    setDragging({ id: el.id, startX: e.clientX, startY: e.clientY, elX: el.x, elY: el.y });
+
+    if (corner) {
+      setResizing({
+        id: el.id,
+        corner,
+        startX: e.clientX,
+        startY: e.clientY,
+        elX: el.x,
+        elY: el.y,
+        elW: el.width,
+        elH: el.height,
+        textFontSize: el.fontSize,
+        codeFontSize: el.codeFontSize,
+        contentScaleX: el.contentScaleX ?? 1,
+      });
+    } else {
+      onSelectElement?.(el.id);
+      setDragging({ id: el.id, startX: e.clientX, startY: e.clientY, elX: el.x, elY: el.y });
+    }
   };
 
   const handleContextMenu = (e: RMouseEvent, el: SlideElement) => {
@@ -120,7 +206,16 @@ export function SlideCanvas(props: SlideCanvasProps) {
 
   const sortedElements = [...slide.elements].sort((a, b) => a.zIndex - b.zIndex);
 
-  const renderDragPlaceholders = () => sortedElements.map(el => {
+  const corners = ['tl', 'tr', 'bl', 'br'];
+  const cornerPos: Record<string, React.CSSProperties> = {
+    tl: { top: -3, left: -3, cursor: 'nwse-resize' },
+    tr: { top: -3, right: -3, cursor: 'nesw-resize' },
+    bl: { bottom: -3, left: -3, cursor: 'nesw-resize' },
+    br: { bottom: -3, right: -3, cursor: 'nwse-resize' },
+  };
+  const cornerResize: Record<string, string> = { tl: 'tl', tr: 'tr', bl: 'bl', br: 'br' };
+
+  const renderInteractionPlaceholders = () => sortedElements.map(el => {
     const isSelected = selectedElementId === el.id && !isPreview;
     return (
       <div
@@ -141,6 +236,17 @@ export function SlideCanvas(props: SlideCanvasProps) {
         onMouseDown={e => { if (e.button === 0 && !isPreview) handleMouseDown(e, el); }}
       >
         {el.type}
+        {isSelected && corners.map(c => (
+          <div
+            key={c}
+            className="absolute bg-blue-500"
+            style={{ ...cornerPos[c], width: 7, height: 7, zIndex: 999 }}
+            onMouseDown={e => {
+              e.stopPropagation();
+              handleMouseDown(e, el, cornerResize[c]);
+            }}
+          />
+        ))}
       </div>
     );
   });
@@ -162,14 +268,14 @@ export function SlideCanvas(props: SlideCanvasProps) {
             transformOrigin: 'top left',
           }}
         >
-          {renderDragPlaceholders()}
+          {renderInteractionPlaceholders()}
           <div className="absolute bottom-18 left-24 text-[20px] px-3 py-1 rounded bg-black/50 text-white" style={{ zIndex: 1000 }}>
             {slideNumber}
           </div>
         </div>
       ) : (
         <>
-          {renderDragPlaceholders()}
+          {renderInteractionPlaceholders()}
           <div className="absolute bottom-2 left-3 text-xs px-2 py-0.5 rounded bg-black/50 text-white" style={{ zIndex: 1000 }}>
             {slideNumber}
           </div>
