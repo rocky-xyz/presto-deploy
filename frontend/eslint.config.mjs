@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   tseslint.configs.recommended,
-  { ignores: ["dist", "src/__test__", "**/*config.js"] },
+  { ignores: ["dist", "src/__test__", "**/*config.js", "e2e", "playwright.config.ts"] },
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
